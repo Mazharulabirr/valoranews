@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save, Trash2, Image as ImageIcon } from "lucide-react";
+import AdminWrapper from "@/components/AdminWrapper";
 import { CATEGORIES } from "@/lib/types";
 
 export default function EditArticle() {
@@ -91,15 +92,17 @@ export default function EditArticle() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-gray-200 border-t-[var(--accent)] rounded-full animate-spin" />
-      </div>
+      <AdminWrapper>
+        <div className="flex items-center justify-center h-96">
+          <div className="w-8 h-8 border-3 border-gray-200 border-t-[var(--accent)] rounded-full animate-spin" />
+        </div>
+      </AdminWrapper>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-[var(--border)] sticky top-0 z-50">
+    <AdminWrapper>
+      <header className="bg-white border-b border-[var(--border)] sticky top-0 z-40">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link
             href="/admin"
@@ -247,6 +250,6 @@ export default function EditArticle() {
           </div>
         </div>
       </form>
-    </div>
+    </AdminWrapper>
   );
 }

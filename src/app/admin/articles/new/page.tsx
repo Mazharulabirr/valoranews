@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save, Image as ImageIcon } from "lucide-react";
+import AdminWrapper from "@/components/AdminWrapper";
 import { CATEGORIES } from "@/lib/types";
 
 export default function NewArticle() {
@@ -53,9 +54,9 @@ export default function NewArticle() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AdminWrapper>
       {/* Header */}
-      <header className="bg-white border-b border-[var(--border)] sticky top-0 z-50">
+      <header className="bg-white border-b border-[var(--border)] sticky top-0 z-40">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link
             href="/admin"
@@ -213,6 +214,6 @@ export default function NewArticle() {
           </div>
         </div>
       </form>
-    </div>
+    </AdminWrapper>
   );
 }
