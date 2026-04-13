@@ -3,6 +3,7 @@ import HeroSection from "@/components/HeroSection";
 import ArticleCard from "@/components/ArticleCard";
 import SectionTitle from "@/components/SectionTitle";
 import Sidebar from "@/components/Sidebar";
+import NewsTicker from "@/components/NewsTicker";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,14 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* Breaking News Marquee */}
+      <NewsTicker articles={headlines.slice(0, 5)} />
+
       {/* Hero */}
       {featured && <HeroSection featured={featured} sideArticles={sideHero} />}
 
       {/* Recent Posts + Sidebar */}
-      <section className="max-w-7xl mx-auto px-4 py-8">
+      <section className="max-w-7xl mx-auto px-4 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
@@ -41,27 +45,28 @@ export default async function HomePage() {
               title="Recent Posts"
               subtitle="The latest stories from around the world"
             />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 stagger-children">
               {recentPosts.map((article) => (
                 <ArticleCard key={article.id} article={article} />
               ))}
             </div>
 
+            {/* Divider */}
+            <div className="my-10 border-t border-[var(--border)]" />
+
             {/* Latest Posts - Horizontal */}
-            <div className="mt-12">
-              <SectionTitle
-                title="Latest Posts"
-                subtitle="More stories you might enjoy"
-              />
-              <div className="space-y-2">
-                {latestPosts.map((article) => (
-                  <ArticleCard
-                    key={article.id}
-                    article={article}
-                    variant="horizontal"
-                  />
-                ))}
-              </div>
+            <SectionTitle
+              title="Latest Posts"
+              subtitle="More stories you might enjoy"
+            />
+            <div className="space-y-1 stagger-children">
+              {latestPosts.map((article) => (
+                <ArticleCard
+                  key={article.id}
+                  article={article}
+                  variant="horizontal"
+                />
+              ))}
             </div>
           </div>
 
