@@ -21,6 +21,7 @@ export default function EditArticle() {
     category: "World",
     author: "Velora News",
     published: true,
+    featured: false,
   });
 
   const fetchArticle = useCallback(async () => {
@@ -43,6 +44,7 @@ export default function EditArticle() {
         category: data.category,
         author: data.author,
         published: data.published,
+        featured: data.featured ?? false,
       });
     } catch {
       router.push("/admin/login");
@@ -216,6 +218,29 @@ export default function EditArticle() {
                   <span
                     className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${
                       form.published ? "translate-x-5.5" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-medium text-gray-500">
+                    Feature on homepage
+                  </label>
+                  <p className="text-[10px] text-gray-400">
+                    Pins this post to the hero banner
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateField("featured", !form.featured)}
+                  className={`w-11 h-6 rounded-full transition-colors duration-300 relative ${
+                    form.featured ? "bg-[var(--accent)]" : "bg-gray-300"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${
+                      form.featured ? "translate-x-5.5" : "translate-x-0.5"
                     }`}
                   />
                 </button>

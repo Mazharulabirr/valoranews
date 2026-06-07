@@ -1,19 +1,73 @@
+import { XMLParser } from "fast-xml-parser";
 import { Article } from "./types";
+import {
+  CustomArticle,
+  getPublishedArticles,
+  getArticleById as getCustomArticleById,
+} from "./articles-db";
+import { getHiddenIds } from "./hidden-news";
 
-const API_KEY = process.env.GNEWS_API_KEY || "";
-const BASE_URL = "https://gnews.io/api/v4";
+// Free, unlimited, real-time RSS feeds from major world news outlets.
+// No API key or quota — replaces the GNews API (free tier had a 12-hour
+// delay and a 100 requests/day limit, which made the site go stale).
+const FEEDS: Record<string, { url: string; source: string }[]> = {
+  world: [
+    { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "BBC News" },
+    { url: "https://www.theguardian.com/world/rss", source: "The Guardian" },
+    { url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", source: "NY Times" },
+  ],
+  politics: [
+    { url: "https://feeds.bbci.co.uk/news/politics/rss.xml", source: "BBC News" },
+    { url: "https://www.theguardian.com/politics/rss", source: "The Guardian" },
+  ],
+  business: [
+    { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC News" },
+    { url: "https://www.theguardian.com/uk/business/rss", source: "The Guardian" },
+  ],
+  technology: [
+    { url: "https://feeds.bbci.co.uk/news/technology/rss.xml", source: "BBC News" },
+    { url: "https://www.theguardian.com/uk/technology/rss", source: "The Guardian" },
+  ],
+  sports: [
+    { url: "https://feeds.bbci.co.uk/sport/rss.xml", source: "BBC Sport" },
+    { url: "https://www.theguardian.com/uk/sport/rss", source: "The Guardian" },
+  ],
+  entertainment: [
+    { url: "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml", source: "BBC News" },
+    { url: "https://www.theguardian.com/uk/culture/rss", source: "The Guardian" },
+  ],
+  health: [
+    { url: "https://feeds.bbci.co.uk/news/health/rss.xml", source: "BBC News" },
+    { url: "https://www.theguardian.com/society/health/rss", source: "The Guardian" },
+  ],
+  science: [
+    { url: "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", source: "BBC News" },
+    { url: "https://www.theguardian.com/science/rss", source: "The Guardian" },
+  ],
+  environment: [
+    { url: "https://www.theguardian.com/environment/rss", source: "The Guardian" },
+    { url: "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", source: "BBC News" },
+  ],
+};
 
-interface GNewsArticle {
-  title: string;
-  description: string;
-  content: string;
-  url: string;
-  image: string;
-  publishedAt: string;
-  source: {
-    name: string;
-    url: string;
-  };
+const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1504711434969-e33886168d5c?w=800&q=80";
+
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+});
+
+interface RssItem {
+  title?: string;
+  link?: string;
+  description?: string;
+  pubDate?: string;
+  "media:thumbnail"?: { "@_url"?: string } | { "@_url"?: string }[];
+  "media:content"?:
+    | { "@_url"?: string; "@_width"?: string }
+    | { "@_url"?: string; "@_width"?: string }[];
+  enclosure?: { "@_url"?: string; "@_type"?: string };
 }
 
 function generateId(url: string, index: number): string {
@@ -26,122 +80,226 @@ function generateId(url: string, index: number): string {
   return Math.abs(hash).toString(36) + index;
 }
 
-function transformArticle(
-  article: GNewsArticle,
-  index: number,
-  category?: string
-): Article {
+function stripHtml(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+}
+
+function extractImage(item: RssItem): string {
+  // media:thumbnail (BBC) — upgrade the tiny 240px thumb to 800px
+  const thumb = Array.isArray(item["media:thumbnail"])
+    ? item["media:thumbnail"][0]
+    : item["media:thumbnail"];
+  if (thumb?.["@_url"]) {
+    return thumb["@_url"].replace(/\/standard\/\d+\//, "/standard/800/");
+  }
+
+  // media:content (Guardian, NYT) — pick the widest variant
+  const media = item["media:content"];
+  if (media) {
+    const list = Array.isArray(media) ? media : [media];
+    const best = list
+      .filter((m) => m["@_url"])
+      .sort((a, b) => Number(b["@_width"] || 0) - Number(a["@_width"] || 0))[0];
+    if (best?.["@_url"]) return best["@_url"];
+  }
+
+  // enclosure fallback
+  if (item.enclosure?.["@_url"] && item.enclosure["@_type"]?.startsWith("image")) {
+    return item.enclosure["@_url"];
+  }
+
+  return FALLBACK_IMAGE;
+}
+
+async function fetchFeed(
+  feed: { url: string; source: string },
+  category: string
+): Promise<Article[]> {
+  try {
+    const res = await fetch(feed.url, {
+      next: { revalidate: 300 },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PulseWire/1.0)" },
+    });
+    if (!res.ok) {
+      console.error(`RSS feed error (${feed.source}):`, res.status);
+      return [];
+    }
+
+    const xml = await res.text();
+    const data = parser.parse(xml);
+    const items: RssItem[] = data?.rss?.channel?.item || [];
+
+    return items
+      .filter((item) => item.title && item.link)
+      .map((item, i) => {
+        const description = stripHtml(item.description || "");
+        const image = extractImage(item);
+        return {
+          id: generateId(item.link!, i),
+          title: stripHtml(item.title!),
+          description,
+          content: description,
+          url: item.link!,
+          image: image.startsWith("https://") ? image : FALLBACK_IMAGE,
+          publishedAt: item.pubDate
+            ? new Date(item.pubDate).toISOString()
+            : new Date().toISOString(),
+          source: { name: feed.source, url: feed.url },
+          category: category.charAt(0).toUpperCase() + category.slice(1),
+        };
+      });
+  } catch (error) {
+    console.error(`Error fetching RSS feed (${feed.source}):`, error);
+    return [];
+  }
+}
+
+async function fetchCategory(category: string): Promise<Article[]> {
+  const feeds = FEEDS[category.toLowerCase()] || FEEDS.world;
+  const results = await Promise.all(feeds.map((f) => fetchFeed(f, category)));
+
+  // Interleave sources so one outlet doesn't dominate, dedupe by title,
+  // then sort newest first
+  const seen = new Set<string>();
+  const merged: Article[] = [];
+  const maxLen = Math.max(...results.map((r) => r.length), 0);
+  for (let i = 0; i < maxLen; i++) {
+    for (const list of results) {
+      const article = list[i];
+      if (!article) continue;
+      const key = article.title.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(article);
+    }
+  }
+
+  return merged.sort(
+    (a, b) =>
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+  );
+}
+
+// Convert an admin-created post to the public Article shape
+function customToArticle(c: CustomArticle): Article {
   return {
-    id: generateId(article.url, index),
-    title: article.title,
-    description: article.description || "",
-    content: article.content || article.description || "",
-    url: article.url,
-    image: article.image || `https://images.unsplash.com/photo-1504711434969-e33886168d5c?w=800&q=80`,
-    publishedAt: article.publishedAt,
-    source: article.source,
-    category: category || "World",
+    id: c.id,
+    title: c.title,
+    description: c.description,
+    content: c.content,
+    url: "#",
+    image: c.image || FALLBACK_IMAGE,
+    publishedAt: c.createdAt,
+    source: { name: c.author, url: "#" },
+    category: c.category,
   };
+}
+
+// Published admin posts for a category (all posts when no category given)
+function getCustomPosts(category?: string): { featured: Article[]; rest: Article[] } {
+  try {
+    let posts = getPublishedArticles();
+    if (category && category.toLowerCase() !== "world") {
+      posts = posts.filter(
+        (p) => p.category.toLowerCase() === category.toLowerCase()
+      );
+    }
+    return {
+      featured: posts.filter((p) => p.featured).map(customToArticle),
+      rest: posts.filter((p) => !p.featured).map(customToArticle),
+    };
+  } catch (error) {
+    console.error("Error reading custom articles:", error);
+    return { featured: [], rest: [] };
+  }
 }
 
 export async function getTopHeadlines(
   category?: string,
   max: number = 10
 ): Promise<Article[]> {
-  if (!API_KEY) return getFallbackArticles(category);
+  const rss = await fetchCategory(category || "world");
+  const news = rss.length > 0 ? rss : getFallbackArticles(category);
 
+  // Drop RSS articles the admin has hidden
+  let hidden: Set<string>;
   try {
-    const params = new URLSearchParams({
-      token: API_KEY,
-      lang: "en",
-      max: max.toString(),
-    });
-
-    if (category && category !== "world") {
-      const topicMap: Record<string, string> = {
-        world: "world",
-        politics: "nation",
-        business: "business",
-        technology: "technology",
-        sports: "sports",
-        entertainment: "entertainment",
-        health: "health",
-        science: "science",
-        environment: "world",
-      };
-      const topic = topicMap[category.toLowerCase()] || "world";
-      params.set("topic", topic);
-    }
-
-    const res = await fetch(`${BASE_URL}/top-headlines?${params}`, {
-      next: { revalidate: 300 },
-    });
-
-    if (!res.ok) {
-      console.error("GNews API error:", res.status);
-      return getFallbackArticles(category);
-    }
-
-    const data = await res.json();
-    return (data.articles || []).map((a: GNewsArticle, i: number) =>
-      transformArticle(a, i, category)
-    );
-  } catch (error) {
-    console.error("Error fetching headlines:", error);
-    return getFallbackArticles(category);
+    hidden = getHiddenIds();
+  } catch {
+    hidden = new Set();
   }
+  const visible = news.filter((a) => !hidden.has(a.id));
+
+  // Admin posts: featured ones pinned first (hero banner), the rest
+  // merged with RSS news by date
+  const { featured, rest } = getCustomPosts(category);
+  const merged = [...rest, ...visible].sort(
+    (a, b) =>
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+  );
+
+  return [...featured, ...merged].slice(0, max);
 }
 
 export async function searchNews(
   query: string,
   max: number = 10
 ): Promise<Article[]> {
-  if (!API_KEY || !query.trim()) return getFallbackArticles();
+  if (!query.trim()) return getFallbackArticles();
 
-  try {
-    const params = new URLSearchParams({
-      token: API_KEY,
-      q: query,
-      lang: "en",
-      max: max.toString(),
-    });
+  const categories = Object.keys(FEEDS);
+  const results = await Promise.all(categories.map((c) => fetchCategory(c)));
 
-    const res = await fetch(`${BASE_URL}/search?${params}`, {
-      next: { revalidate: 300 },
-    });
-
-    if (!res.ok) {
-      console.error("GNews search error:", res.status);
-      return getFallbackArticles();
+  const q = query.toLowerCase();
+  const seen = new Set<string>();
+  const matches: Article[] = [];
+  const { featured, rest } = getCustomPosts();
+  for (const article of [...featured, ...rest, ...results.flat()]) {
+    if (seen.has(article.title.toLowerCase())) continue;
+    if (
+      article.title.toLowerCase().includes(q) ||
+      article.description.toLowerCase().includes(q)
+    ) {
+      seen.add(article.title.toLowerCase());
+      matches.push(article);
     }
-
-    const data = await res.json();
-    return (data.articles || []).map((a: GNewsArticle, i: number) =>
-      transformArticle(a, i)
-    );
-  } catch (error) {
-    console.error("Error searching news:", error);
-    return getFallbackArticles();
   }
+
+  return matches
+    .sort(
+      (a, b) =>
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    )
+    .slice(0, max);
 }
 
 // Get a single article by ID - searches across categories
-export async function getArticleById(
-  id: string
-): Promise<Article | null> {
-  const headlines = await getTopHeadlines(undefined, 10);
-  const found = headlines.find((a) => a.id === id);
-  if (found) return found;
+export async function getArticleById(id: string): Promise<Article | null> {
+  // Admin-created posts have a "custom-" id prefix — read straight from disk
+  if (id.startsWith("custom-")) {
+    try {
+      const custom = getCustomArticleById(id);
+      return custom && custom.published ? customToArticle(custom) : null;
+    } catch {
+      return null;
+    }
+  }
 
-  // Try other categories
-  const categories = ["technology", "sports", "business", "health", "science", "entertainment"];
-  for (const cat of categories) {
-    const articles = await getTopHeadlines(cat, 10);
+  for (const category of Object.keys(FEEDS)) {
+    const articles = await fetchCategory(category);
     const match = articles.find((a) => a.id === id);
     if (match) return match;
   }
 
-  return null;
+  return getFallbackArticles().find((a) => a.id === id) || null;
 }
 
 function getFallbackArticles(category?: string): Article[] {

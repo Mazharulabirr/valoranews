@@ -1,8 +1,8 @@
-import Image from "next/image";
+import SafeImage from "@/components/SafeImage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Clock, ArrowLeft } from "lucide-react";
-import { getTopHeadlines } from "@/lib/api";
+import { getTopHeadlines, getArticleById } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import ArticleCard from "@/components/ArticleCard";
 import SectionTitle from "@/components/SectionTitle";
@@ -15,33 +15,16 @@ interface PageProps {
 export default async function ArticlePage({ params }: PageProps) {
   const { id } = await params;
 
-  // Search across multiple categories to find the article
-  const allCategories = [undefined, "technology", "sports", "business", "health", "science", "entertainment"];
-  let article = null;
-  let allArticles: Awaited<ReturnType<typeof getTopHeadlines>> = [];
-
-  for (const cat of allCategories) {
-    const articles = await getTopHeadlines(cat, 10);
-    allArticles = [...allArticles, ...articles];
-    const found = articles.find((a) => a.id === id);
-    if (found) {
-      article = found;
-      break;
-    }
-  }
+  const article = await getArticleById(id);
 
   if (!article) {
     notFound();
   }
 
-  // Deduplicate and get related articles
-  const seen = new Set<string>();
-  const relatedArticles = allArticles
-    .filter((a) => {
-      if (a.id === article.id || seen.has(a.id)) return false;
-      seen.add(a.id);
-      return true;
-    })
+  // Related articles from the same category
+  const headlines = await getTopHeadlines(article.category, 12);
+  const relatedArticles = headlines
+    .filter((a) => a.id !== article.id)
     .slice(0, 5);
 
   const timeAgo = formatDistanceToNow(new Date(article.publishedAt), {
@@ -108,7 +91,7 @@ export default async function ArticlePage({ params }: PageProps) {
 
           {/* Featured Image */}
           <div className="relative aspect-[16/9] rounded-xl overflow-hidden mb-8">
-            <Image
+            <SafeImage
               src={article.image}
               alt={article.title}
               fill

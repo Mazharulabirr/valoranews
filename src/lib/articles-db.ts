@@ -10,6 +10,7 @@ export interface CustomArticle {
   category: string;
   author: string;
   published: boolean;
+  featured?: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import SafeImage from "@/components/SafeImage";
 import { Clock, TrendingUp } from "lucide-react";
 import { Article } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
@@ -39,7 +39,7 @@ export default function HeroSection({
           href={`/article/${featured.id}`}
           className="lg:col-span-2 group relative rounded-2xl overflow-hidden aspect-[16/9] lg:aspect-auto lg:min-h-[500px] img-zoom"
         >
-          <Image
+          <SafeImage
             src={featured.image}
             alt={featured.title}
             fill
@@ -81,7 +81,7 @@ export default function HeroSection({
                 href={`/article/${article.id}`}
                 className="group relative rounded-xl overflow-hidden flex-1 min-h-[150px] img-zoom animate-fade-in-up"
               >
-                <Image
+                <SafeImage
                   src={article.image}
                   alt={article.title}
                   fill

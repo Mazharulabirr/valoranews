@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import SafeImage from "@/components/SafeImage";
 import { Clock } from "lucide-react";
 import { Article } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
@@ -24,7 +24,7 @@ export default function ArticleCard({
         className="group flex gap-4 p-4 rounded-xl hover:bg-gray-50 transition-all duration-300 border border-transparent hover:border-[var(--border)]"
       >
         <div className="relative w-32 h-24 md:w-40 md:h-28 flex-shrink-0 rounded-lg overflow-hidden img-zoom">
-          <Image
+          <SafeImage
             src={article.image}
             alt={article.title}
             fill
@@ -81,7 +81,7 @@ export default function ArticleCard({
       className="group block rounded-xl overflow-hidden border border-[var(--border)] bg-white card-hover animate-fade-in-up"
     >
       <div className="relative aspect-[16/10] overflow-hidden img-zoom">
-        <Image
+        <SafeImage
           src={article.image}
           alt={article.title}
           fill

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
+  Newspaper,
   FolderOpen,
   Users,
   Settings,
@@ -19,6 +20,7 @@ import { useState } from "react";
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/articles/new", label: "New Article", icon: FileText },
+  { href: "/admin/news", label: "Manage News", icon: Newspaper },
   { href: "/admin/categories", label: "Categories", icon: FolderOpen },
   { href: "/admin/subscribers", label: "Subscribers", icon: Users },
   { href: "/admin/settings", label: "Site Settings", icon: Settings },
