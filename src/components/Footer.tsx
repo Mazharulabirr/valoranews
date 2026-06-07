@@ -132,6 +132,15 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-gray-500 text-sm">
             &copy; {new Date().getFullYear()} Velora News. All rights reserved.
+            {" "}&middot; Developed by{" "}
+            <a
+              href="https://www.upwork.com/services/product/development-it-modern-high-converting-wordpress-website-that-turns-visitors-into-customers-2063487430321523634"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-400 font-medium hover:text-[var(--accent)] transition-colors duration-300"
+            >
+              Mazharul Abir
+            </a>
           </p>
           <div className="flex items-center gap-6 text-gray-500 text-sm">
             <Link href="/privacy" className="hover:text-[var(--accent)] transition-colors duration-300">Privacy</Link>
